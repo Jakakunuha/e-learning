@@ -83,9 +83,9 @@
     <!-- APP CONTAINER -->
     <div id="app" class="min-h-screen flex flex-col md:flex-row">
 
-        <!-- SIDEBAR (Admin/Guru) -->
+        <!-- SIDEBAR (Admin/Guru) - Hidden on Mobile, Visible on md -->
         <aside id="sidebar"
-            class="hidden md:flex flex-col w-64 bg-slate-900 text-white min-h-screen fixed z-20 transition-transform duration-300">
+            class="hidden flex-col w-64 bg-slate-900 text-white min-h-screen fixed z-20 transition-transform duration-300">
             <div class="flex items-center justify-center h-16 border-b border-slate-700">
                 <i class="fas fa-graduation-cap text-2xl text-blue-400 mr-2"></i>
                 <span class="text-xl font-bold tracking-wider">SmartSchool</span>
@@ -114,13 +114,13 @@
         <!-- MAIN CONTENT WRAPPER -->
         <div id="main-wrapper" class="flex-1 flex flex-col md:ml-0 transition-all duration-300 w-full">
 
-            <!-- TOP NAVBAR -->
+            <!-- TOP NAVBAR (Public & Auth Mobile) -->
             <header
                 class="bg-white shadow-sm h-16 fixed w-full md:w-[calc(100%-16rem)] z-10 flex items-center justify-between px-4 lg:px-8 transition-all duration-300"
                 id="top-navbar">
                 <div class="flex items-center">
                     <button id="mobile-menu-btn"
-                        class="md:hidden mr-4 text-slate-600 hover:text-slate-900 focus:outline-none">
+                        class="hidden mr-4 text-slate-600 hover:text-slate-900 focus:outline-none">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
                     <div class="md:hidden flex items-center" id="mobile-brand">
@@ -131,14 +131,17 @@
                 </div>
 
                 <div class="flex items-center space-x-4">
-                    <!-- Public Nav -->
+                    <!-- Public Nav (Bila belum login) -->
                     <div id="public-nav" class="hidden md:flex space-x-4 text-sm font-medium text-slate-600">
                         <a href="#" onclick="navigate('home')" class="hover:text-blue-600">Beranda</a>
+                        <a href="#" onclick="navigate('about')" class="hover:text-blue-600">Tentang</a>
                         <a href="#" onclick="navigate('public-materi')" class="hover:text-blue-600">Materi</a>
+                        <a href="#" onclick="navigate('public-tugas-list')" class="hover:text-blue-600">Tugas</a>
+                        <a href="#" onclick="navigate('public-kuis-list')" class="hover:text-blue-600">Kuis</a>
                         <a href="#" onclick="navigate('login')"
                             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Login</a>
                     </div>
-                    <!-- Notif -->
+                    <!-- Notif (Bila login) -->
                     <button id="notif-btn" class="hidden text-slate-500 hover:text-blue-600 relative">
                         <i class="far fa-bell text-xl"></i>
                         <span class="absolute top-0 right-0 -mt-1 -mr-1 flex h-3 w-3">
@@ -156,7 +159,7 @@
             </main>
         </div>
 
-        <!-- BOTTOM NAVIGATION (Mobile Only) -->
+        <!-- BOTTOM NAVIGATION (Mobile Only - For Logged In Users) -->
         <nav id="bottom-nav"
             class="hidden md:hidden fixed bottom-0 w-full bg-white border-t border-slate-200 flex justify-around p-2 z-20 pb-safe">
             <!-- Dinamis diisi oleh JS -->
@@ -177,14 +180,23 @@
            1. KONFIGURASI & STATE MANAGEMENT
            ========================================== */
         // UBAH INI dengan URL Web App GAS Anda saat production
-        const GAS_WEB_APP_URL = "";
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxykgRqOK-xNfVphTeEMJNnoNaPsQTKwxMD1nnsig4TTgn20mgSIhtCXgcxP5wJB-T5/exec";
+        // Mode Preview: Jika GAS_WEB_APP_URL kosong, gunakan Mock Data
         const IS_PREVIEW = GAS_WEB_APP_URL === "";
 
+        // App State
         let state = {
-            user: null,
+            user: null, // {id, role: 'admin'|'guru', name, username}
             currentRoute: 'home',
             data: {
-                materi: [], tugas: [], kuis: [], soal: [], siswa: [], guru: [], kelas: [], mapel: [],
+                materi: [],
+                tugas: [],
+                kuis: [],
+                soal: [],
+                siswa: [],
+                guru: [],
+                kelas: [],
+                mapel: [],
                 stats: { totalGuru: 0, totalSiswa: 0, totalKelas: 0, totalMateri: 0 },
                 currentViewData: null
             }
@@ -220,7 +232,7 @@
                 { id: 'm2', judul: 'Sejarah Kemerdekaan', mapel: 'Sejarah', kelas: 'XI IPS 2', tipe: 'youtube', pembuat: 'Siti Aminah, S.Pd', date: '2026-06-12', link: 'https://youtube.com/' },
             ],
             tugas: [
-                { id: 't1', judul: 'Latihan Aljabar 1', mapel: 'Matematika', kelas: 'X IPA 1', deadline: '2026-06-20', terkumpul: 5, total: 30, guru: 'Budi Santoso, S.Pd' },
+                { id: 't1', judul: 'Latihan Aljabar 1', mapel: 'Matematika', kelas: 'X IPA 1', deadline: '2026-06-20', terkumpul: 5, total: 30, guru: 'Budi Santoso, S.Pd', deskripsi: 'QnVhdGxhaCByYW5na3VtYW4gbWVuZ2VuYWkgYWxqYWJhciBsaW5pZXI=' },
             ],
             kuis: [
                 { id: 'q1', judul: 'Ulangan Harian 1 - Aljabar', mapel: 'Matematika', kelas: 'X IPA 1', durasi: '60', guru: 'Budi Santoso, S.Pd' }
@@ -239,6 +251,7 @@
         /* ==========================================
            3. CORE FUNCTIONS (API & AUTH)
            ========================================== */
+
         async function apiCall(action, payload = {}) {
             showLoader();
             try {
@@ -267,48 +280,59 @@
                     const user = MOCK_DATA.users.find(u => u.username === payload.username && u.password === payload.password);
                     if (user) return { success: true, data: { id: user.id, role: user.role, name: user.name } };
                     return { success: false, message: 'Username atau Password salah' };
-                case 'get_dashboard': return { success: true, data: MOCK_DATA.stats };
-                case 'get_materi': return { success: true, data: MOCK_DATA.materi };
+                case 'get_dashboard':
+                    return { success: true, data: MOCK_DATA.stats };
+                case 'get_materi':
+                    return { success: true, data: MOCK_DATA.materi };
                 case 'save_materi':
-                    const newMateri = { ...payload, id: 'm' + Date.now(), date: new Date().toISOString().split('T')[0], pembuat: payload.pembuat || state.user.name };
+                    const pembuatMateri = payload.pembuat || state.user.name;
+                    const newMateri = { ...payload, id: 'm' + Date.now(), date: new Date().toISOString().split('T')[0], pembuat: pembuatMateri };
                     MOCK_DATA.materi.unshift(newMateri);
                     return { success: true, message: 'Materi berhasil disimpan', data: newMateri };
-                case 'get_kelas': return { success: true, data: MOCK_DATA.kelas };
+                case 'get_kelas':
+                    return { success: true, data: MOCK_DATA.kelas };
                 case 'save_kelas':
                     const newKelas = { ...payload, id: 'k' + Date.now() };
                     MOCK_DATA.kelas.push(newKelas);
                     return { success: true, message: 'Kelas berhasil dibuat', data: newKelas };
-                case 'get_guru': return { success: true, data: MOCK_DATA.guru };
+                case 'get_guru':
+                    return { success: true, data: MOCK_DATA.guru };
                 case 'save_guru':
                     const newGuru = { ...payload, id: 'g' + Date.now() };
                     MOCK_DATA.guru.push(newGuru);
                     return { success: true, message: 'Guru berhasil ditambahkan', data: newGuru };
-                case 'get_mapel': return { success: true, data: MOCK_DATA.mapel };
+                case 'get_mapel':
+                    return { success: true, data: MOCK_DATA.mapel };
                 case 'save_mapel':
                     const newMapel = { ...payload, id: 'mp' + Date.now() };
                     MOCK_DATA.mapel.push(newMapel);
                     return { success: true, message: 'Mata Pelajaran berhasil ditambahkan', data: newMapel };
-                case 'get_siswa': return { success: true, data: MOCK_DATA.siswa };
+                case 'get_siswa':
+                    return { success: true, data: MOCK_DATA.siswa };
                 case 'save_siswa':
                     const newSiswa = { ...payload, id: 's' + Date.now() };
                     MOCK_DATA.siswa.push(newSiswa);
                     return { success: true, message: 'Siswa berhasil ditambahkan ke kelas', data: newSiswa };
-                case 'get_tugas': return { success: true, data: MOCK_DATA.tugas };
+                case 'get_tugas':
+                    return { success: true, data: MOCK_DATA.tugas };
                 case 'save_tugas':
                     const newTugas = { ...payload, id: 't' + Date.now(), terkumpul: 0, total: 30 };
                     MOCK_DATA.tugas.push(newTugas);
                     return { success: true, message: 'Tugas berhasil dibuat', data: newTugas };
-                case 'get_kuis': return { success: true, data: MOCK_DATA.kuis };
+                case 'get_kuis':
+                    return { success: true, data: MOCK_DATA.kuis };
                 case 'save_kuis':
                     const newKuis = { ...payload, id: 'q' + Date.now() };
                     MOCK_DATA.kuis.push(newKuis);
                     return { success: true, message: 'Kuis berhasil dibuat', data: newKuis };
-                case 'get_soal': return { success: true, data: MOCK_DATA.soal };
+                case 'get_soal':
+                    return { success: true, data: MOCK_DATA.soal };
                 case 'save_soal':
                     const newSoal = { ...payload, id: 'sq' + Date.now() };
                     MOCK_DATA.soal.push(newSoal);
                     return { success: true, message: 'Soal ditambahkan', data: newSoal };
-                default: return { success: false, message: 'Action not found in mock' };
+                default:
+                    return { success: false, message: 'Action not found in mock' };
             }
         }
 
@@ -316,6 +340,7 @@
             e.preventDefault();
             const user = document.getElementById('username').value;
             const pass = document.getElementById('password').value;
+
             const res = await apiCall('login', { username: user, password: pass });
             if (res.success) {
                 state.user = res.data;
@@ -343,10 +368,14 @@
 
         function checkAuth() {
             const saved = localStorage.getItem('sls_user');
-            if (saved) { state.user = JSON.parse(saved); return true; }
+            if (saved) {
+                state.user = JSON.parse(saved);
+                return true;
+            }
             return false;
         }
 
+        // Utils
         function showLoader() { document.getElementById('global-loader').classList.remove('hidden'); }
         function hideLoader() { document.getElementById('global-loader').classList.add('hidden'); }
         function base64Encode(str) { return btoa(unescape(encodeURIComponent(str))); }
@@ -369,20 +398,24 @@
         /* ==========================================
            4. ROUTING & UI LAYOUT
            ========================================== */
+
         const ROUTES = {
             'home': { title: 'Beranda', auth: false, render: renderHome },
+            'about': { title: 'Tentang Sekolah', auth: false, render: renderAbout },
             'login': { title: 'Login Sistem', auth: false, render: renderLogin },
             'public-materi': { title: 'Materi Pembelajaran', auth: false, render: renderPublicMateri },
+            'public-tugas-list': { title: 'Daftar Tugas', auth: false, render: renderPublicTugasList },
+            'public-kuis-list': { title: 'Daftar Kuis', auth: false, render: renderPublicKuisList },
+            'public-tugas': { title: 'Kerjakan Tugas', auth: false, render: renderPublicTugas },
             'public-kuis': { title: 'Kerjakan Kuis', auth: false, render: renderPublicKuis },
-            'public-tugas': { title: 'Kerjakan Tugas', auth: false, render: renderNilaiPlaceholder },
-            'dashboard': { title: 'Dashboard', auth: true, render: renderDashboard },
-            'guru': { title: 'Master Data Guru', auth: true, render: renderGuruAdmin },
-            'mapel': { title: 'Master Data Mapel', auth: true, render: renderMapelAdmin },
-            'kelas': { title: 'Master Data Kelas', auth: true, render: renderKelasAdmin },
-            'materi': { title: 'Manajemen Materi', auth: true, render: renderMateriAdmin },
-            'tugas': { title: 'Manajemen Tugas', auth: true, render: renderTugasAdmin },
-            'kuis': { title: 'Manajemen Kuis', auth: true, render: renderKuisAdmin },
-            'nilai': { title: 'Buku Nilai', auth: true, render: renderNilaiPlaceholder }
+            'dashboard': { title: 'Dashboard', auth: true, roles: ['admin', 'guru'], render: renderDashboard },
+            'guru': { title: 'Master Data Guru', auth: true, roles: ['admin'], render: renderGuruAdmin },
+            'mapel': { title: 'Master Data Mapel', auth: true, roles: ['admin'], render: renderMapelAdmin },
+            'kelas': { title: 'Master Data Kelas', auth: true, roles: ['admin'], render: renderKelasAdmin },
+            'materi': { title: 'Manajemen Materi', auth: true, roles: ['admin', 'guru'], render: renderMateriAdmin },
+            'tugas': { title: 'Manajemen Tugas', auth: true, roles: ['admin', 'guru'], render: renderTugasAdmin },
+            'kuis': { title: 'Manajemen Kuis', auth: true, roles: ['admin', 'guru'], render: renderKuisAdmin },
+            'nilai': { title: 'Buku Nilai', auth: true, roles: ['admin', 'guru'], render: renderNilaiPlaceholder }
         };
 
         const MENU_ITEMS = [
@@ -397,13 +430,23 @@
         ];
 
         function navigate(routeId) {
-            const route = ROUTES[routeId];
+            let baseRoute = routeId.split('?')[0];
+            const route = ROUTES[baseRoute] || ROUTES[routeId];
             if (!route) return;
 
-            if (route.auth && !state.user) { navigate('login'); return; }
-            if (!route.auth && state.user && routeId === 'login') { navigate('dashboard'); return; }
+            // Protection Logic (SOP/RBAC)
+            if (route.auth && !state.user) {
+                navigate('login'); return;
+            }
+            if (!route.auth && state.user && baseRoute === 'login') {
+                navigate('dashboard'); return;
+            }
+            if (route.auth && route.roles && !route.roles.includes(state.user.role)) {
+                Swal.fire('Akses Ditolak', 'Berdasarkan SOP, Anda tidak memiliki hak akses halaman ini.', 'error');
+                navigate('dashboard'); return;
+            }
 
-            state.currentRoute = routeId;
+            state.currentRoute = baseRoute;
             document.getElementById('page-title').innerText = route.title;
 
             const container = document.getElementById('view-container');
@@ -423,36 +466,48 @@
             const publicNav = document.getElementById('public-nav');
             const notifBtn = document.getElementById('notif-btn');
             const bottomNav = document.getElementById('bottom-nav');
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 
             if (state.user) {
                 sidebar.classList.remove('hidden');
-                sidebar.classList.add('-translate-x-full', 'md:translate-x-0');
+                sidebar.classList.add('md:flex', '-translate-x-full', 'md:translate-x-0');
                 mainWrap.classList.add('md:ml-64');
                 publicNav.classList.add('hidden');
                 notifBtn.classList.remove('hidden');
                 bottomNav.classList.remove('hidden');
                 document.getElementById('top-navbar').classList.add('md:w-[calc(100%-16rem)]');
 
+                mobileMenuBtn.classList.remove('hidden');
+                mobileMenuBtn.classList.add('md:hidden');
+
                 document.getElementById('sidebar-name').innerText = state.user.name;
                 document.getElementById('sidebar-role').innerText = state.user.role;
                 document.getElementById('sidebar-avatar').innerText = state.user.name.charAt(0);
+
                 buildMenus();
             } else {
                 sidebar.classList.add('hidden');
+                sidebar.classList.remove('md:flex', '-translate-x-full', 'md:translate-x-0');
                 mainWrap.classList.remove('md:ml-64');
                 publicNav.classList.remove('hidden');
                 notifBtn.classList.add('hidden');
                 bottomNav.classList.add('hidden');
                 document.getElementById('top-navbar').classList.remove('md:w-[calc(100%-16rem)]');
+
+                mobileMenuBtn.classList.add('hidden');
+                mobileMenuBtn.classList.remove('md:hidden');
             }
         }
 
         function buildMenus() {
             const sidebarNav = document.getElementById('sidebar-nav');
             const bottomNav = document.getElementById('bottom-nav');
-            sidebarNav.innerHTML = ''; bottomNav.innerHTML = '';
+            sidebarNav.innerHTML = '';
+            bottomNav.innerHTML = '';
 
-            MENU_ITEMS.filter(m => m.roles.includes(state.user.role)).forEach(menu => {
+            const userRole = state.user.role;
+
+            MENU_ITEMS.filter(m => m.roles.includes(userRole)).forEach(menu => {
                 const a = document.createElement('a');
                 a.href = `#${menu.id}`;
                 a.onclick = (e) => { e.preventDefault(); navigate(menu.id); };
@@ -473,24 +528,39 @@
 
         function updateActiveMenu() {
             document.querySelectorAll('.menu-item').forEach(el => {
-                if (el.dataset.target === state.currentRoute) { el.classList.add('bg-blue-600', 'text-white'); el.classList.remove('text-slate-300', 'hover:bg-slate-800'); }
-                else { el.classList.remove('bg-blue-600', 'text-white'); el.classList.add('text-slate-300', 'hover:bg-slate-800'); }
+                if (el.dataset.target === state.currentRoute) {
+                    el.classList.add('bg-blue-600', 'text-white');
+                    el.classList.remove('text-slate-300', 'hover:bg-slate-800');
+                } else {
+                    el.classList.remove('bg-blue-600', 'text-white');
+                    el.classList.add('text-slate-300', 'hover:bg-slate-800');
+                }
             });
             document.querySelectorAll('.bottom-item').forEach(el => {
-                if (el.dataset.target === state.currentRoute) { el.classList.add('text-blue-600'); el.classList.remove('text-slate-500'); }
-                else { el.classList.remove('text-blue-600'); el.classList.add('text-slate-500'); }
+                if (el.dataset.target === state.currentRoute) {
+                    el.classList.add('text-blue-600');
+                    el.classList.remove('text-slate-500');
+                } else {
+                    el.classList.remove('text-blue-600');
+                    el.classList.add('text-slate-500');
+                }
             });
         }
 
         function toggleMobileMenu() {
             const sidebar = document.getElementById('sidebar');
-            if (sidebar.classList.contains('-translate-x-full')) { sidebar.classList.remove('-translate-x-full', 'hidden'); sidebar.classList.add('translate-x-0'); }
-            else { sidebar.classList.add('-translate-x-full'); }
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full', 'hidden');
+                sidebar.classList.add('translate-x-0');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+            }
         }
 
         /* ==========================================
            5. VIEW RENDERERS (HALAMAN)
            ========================================== */
+
         // -- PUBLIC: HOME --
         function renderHome(container) {
             container.innerHTML = `
@@ -503,10 +573,23 @@
                             <button onclick="navigate('login')" class="bg-blue-800 bg-opacity-50 border border-blue-400 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800 transition">Login Sistem</button>
                         </div>
                     </div>
+                    
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center hover:shadow-md transition"><div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"><i class="fas fa-book-open"></i></div><h3 class="text-xl font-bold text-slate-800 mb-2">Materi Terstruktur</h3><p class="text-slate-600">Akses modul pembelajaran, video YouTube, dan dokumen dalam satu klik.</p></div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center hover:shadow-md transition"><div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"><i class="fas fa-tasks"></i></div><h3 class="text-xl font-bold text-slate-800 mb-2">Tugas & Kuis Online</h3><p class="text-slate-600">Pengumpulan tugas digital dan sistem kuis otomatis dengan penilaian seketika.</p></div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center hover:shadow-md transition"><div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"><i class="fas fa-chart-line"></i></div><h3 class="text-xl font-bold text-slate-800 mb-2">Monitoring Nilai</h3><p class="text-slate-600">Pantau perkembangan akademik siswa dengan buku nilai terintegrasi.</p></div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center hover:shadow-md transition">
+                            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"><i class="fas fa-book-open"></i></div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-2">Materi Terstruktur</h3>
+                            <p class="text-slate-600">Akses modul pembelajaran, video YouTube, dan dokumen dalam satu klik tanpa repot mencari.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center hover:shadow-md transition">
+                            <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"><i class="fas fa-tasks"></i></div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-2">Tugas & Kuis Online</h3>
+                            <p class="text-slate-600">Pengumpulan tugas digital dan sistem kuis otomatis dengan penilaian seketika (real-time).</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center hover:shadow-md transition">
+                            <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"><i class="fas fa-chart-line"></i></div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-2">Monitoring Nilai</h3>
+                            <p class="text-slate-600">Pantau perkembangan akademik siswa dengan buku nilai terintegrasi dan cetak rapor mudah.</p>
+                        </div>
                     </div>
                 </div>
             `;
@@ -516,12 +599,30 @@
         function renderLogin(container) {
             container.innerHTML = `
                 <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
-                    <div class="bg-blue-600 p-6 text-center"><i class="fas fa-graduation-cap text-4xl text-white mb-2"></i><h2 class="text-2xl font-bold text-white">Login Sistem</h2><p class="text-blue-200 text-sm mt-1">Gunakan akun Guru atau Admin Anda</p></div>
+                    <div class="bg-blue-600 p-6 text-center">
+                        <i class="fas fa-graduation-cap text-4xl text-white mb-2"></i>
+                        <h2 class="text-2xl font-bold text-white">Login Sistem</h2>
+                        <p class="text-blue-200 text-sm mt-1">Gunakan akun Guru atau Admin Anda</p>
+                    </div>
                     <div class="p-8">
                         <form onsubmit="login(event)">
-                            <div class="mb-5"><label class="block text-sm font-medium text-slate-700 mb-2">Username</label><div class="relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-user text-slate-400"></i></div><input type="text" id="username" class="pl-10 w-full rounded-lg border-slate-300 border p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" required value="admin"></div></div>
-                            <div class="mb-6"><label class="block text-sm font-medium text-slate-700 mb-2">Password</label><div class="relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-lock text-slate-400"></i></div><input type="password" id="password" class="pl-10 w-full rounded-lg border-slate-300 border p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" required value="123"></div></div>
-                            <button type="submit" class="w-full bg-blue-600 text-white font-bold rounded-lg py-3 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all shadow-md">Masuk ke Dashboard</button>
+                            <div class="mb-5">
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Username</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-user text-slate-400"></i></div>
+                                    <input type="text" id="username" class="pl-10 w-full rounded-lg border-slate-300 border p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="Masukkan username" required value="admin">
+                                </div>
+                            </div>
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-lock text-slate-400"></i></div>
+                                    <input type="password" id="password" class="pl-10 w-full rounded-lg border-slate-300 border p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="••••••••" required value="123">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-blue-600 text-white font-bold rounded-lg py-3 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all shadow-md">
+                                Masuk ke Dashboard
+                            </button>
                         </form>
                         ${IS_PREVIEW ? `<div class="mt-4 p-3 bg-yellow-50 text-yellow-800 text-xs rounded border border-yellow-200"><b>Mode Demo Aktif:</b><br>Admin: admin/123 <br>Guru: guru/123</div>` : ''}
                     </div>
@@ -536,28 +637,60 @@
             const stats = state.data.stats;
 
             container.innerHTML = `
-                <div class="mb-6"><h2 class="text-2xl font-bold text-slate-800">Selamat datang, ${state.user.name} 👋</h2><p class="text-slate-500 mt-1">Ringkasan aktivitas akademik hari ini.</p></div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4"><div class="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xl"><i class="fas fa-users"></i></div><div><p class="text-sm text-slate-500 font-medium">Total Siswa</p><p class="text-2xl font-bold text-slate-800">${stats.totalSiswa}</p></div></div>
-                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4"><div class="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center text-xl"><i class="fas fa-chalkboard-teacher"></i></div><div><p class="text-sm text-slate-500 font-medium">Total Guru</p><p class="text-2xl font-bold text-slate-800">${stats.totalGuru}</p></div></div>
-                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4"><div class="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xl"><i class="fas fa-book"></i></div><div><p class="text-sm text-slate-500 font-medium">Materi Aktif</p><p class="text-2xl font-bold text-slate-800">${stats.totalMateri}</p></div></div>
-                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4"><div class="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xl"><i class="fas fa-layer-group"></i></div><div><p class="text-sm text-slate-500 font-medium">Total Kelas</p><p class="text-2xl font-bold text-slate-800">${stats.totalKelas}</p></div></div>
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800">Selamat datang, ${state.user.name} 👋</h2>
+                    <p class="text-slate-500 mt-1">Ringkasan aktivitas akademik hari ini.</p>
                 </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4">
+                        <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xl"><i class="fas fa-users"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">Total Siswa</p><p class="text-2xl font-bold text-slate-800">${stats.totalSiswa}</p></div>
+                    </div>
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4">
+                        <div class="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center text-xl"><i class="fas fa-chalkboard-teacher"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">Total Guru</p><p class="text-2xl font-bold text-slate-800">${stats.totalGuru}</p></div>
+                    </div>
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4">
+                        <div class="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xl"><i class="fas fa-book"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">Materi Aktif</p><p class="text-2xl font-bold text-slate-800">${stats.totalMateri}</p></div>
+                    </div>
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center space-x-4">
+                        <div class="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xl"><i class="fas fa-layer-group"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">Total Kelas</p><p class="text-2xl font-bold text-slate-800">${stats.totalKelas}</p></div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
                         <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Aksi Cepat</h3>
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <button onclick="navigate('materi')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition border border-transparent hover:border-blue-100 group"><i class="fas fa-upload text-2xl text-slate-400 group-hover:text-blue-500 mb-2"></i><span class="text-sm font-medium">Upload Materi</span></button>
-                            <button onclick="navigate('tugas')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-green-50 hover:text-green-600 transition border border-transparent hover:border-green-100 group"><i class="fas fa-tasks text-2xl text-slate-400 group-hover:text-green-500 mb-2"></i><span class="text-sm font-medium">Buat Tugas</span></button>
-                            <button onclick="navigate('kuis')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition border border-transparent hover:border-indigo-100 group"><i class="fas fa-list-check text-2xl text-slate-400 group-hover:text-indigo-500 mb-2"></i><span class="text-sm font-medium">Buat Kuis</span></button>
-                            <button onclick="navigate('nilai')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-orange-50 hover:text-orange-600 transition border border-transparent hover:border-orange-100 group"><i class="fas fa-star text-2xl text-slate-400 group-hover:text-orange-500 mb-2"></i><span class="text-sm font-medium">Input Nilai</span></button>
+                            <button onclick="navigate('materi')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition border border-transparent hover:border-blue-100 group">
+                                <i class="fas fa-upload text-2xl text-slate-400 group-hover:text-blue-500 mb-2"></i><span class="text-sm font-medium">Upload Materi</span>
+                            </button>
+                            <button onclick="navigate('tugas')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-green-50 hover:text-green-600 transition border border-transparent hover:border-green-100 group">
+                                <i class="fas fa-tasks text-2xl text-slate-400 group-hover:text-green-500 mb-2"></i><span class="text-sm font-medium">Buat Tugas</span>
+                            </button>
+                            <button onclick="navigate('kuis')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition border border-transparent hover:border-indigo-100 group">
+                                <i class="fas fa-list-check text-2xl text-slate-400 group-hover:text-indigo-500 mb-2"></i><span class="text-sm font-medium">Buat Kuis</span>
+                            </button>
+                            <button onclick="navigate('nilai')" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg hover:bg-orange-50 hover:text-orange-600 transition border border-transparent hover:border-orange-100 group">
+                                <i class="fas fa-star text-2xl text-slate-400 group-hover:text-orange-500 mb-2"></i><span class="text-sm font-medium">Input Nilai</span>
+                            </button>
                         </div>
                     </div>
+                    
                     <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
                         <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Notifikasi Terbaru</h3>
                         <div class="space-y-4">
-                            <div class="flex items-start"><div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mt-1 mr-3 flex-shrink-0"><i class="fas fa-info"></i></div><div><p class="text-sm font-medium text-slate-800">Sistem Semester Genap Aktif</p><p class="text-xs text-slate-500">2 Jam yang lalu</p></div></div>
-                            <div class="flex items-start"><div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mt-1 mr-3 flex-shrink-0"><i class="fas fa-file-alt"></i></div><div><p class="text-sm font-medium text-slate-800">15 Siswa Mengumpulkan Tugas</p><p class="text-xs text-slate-500">Tugas Aljabar 1 • 5 Jam yang lalu</p></div></div>
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mt-1 mr-3 flex-shrink-0"><i class="fas fa-info"></i></div>
+                                <div><p class="text-sm font-medium text-slate-800">Sistem Semester Genap Aktif</p><p class="text-xs text-slate-500">2 Jam yang lalu</p></div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mt-1 mr-3 flex-shrink-0"><i class="fas fa-file-alt"></i></div>
+                                <div><p class="text-sm font-medium text-slate-800">15 Siswa Mengumpulkan Tugas</p><p class="text-xs text-slate-500">Tugas Aljabar 1 • 5 Jam yang lalu</p></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -570,16 +703,25 @@
 
             container.innerHTML = `
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <div><h2 class="text-2xl font-bold text-slate-800">Master Data Guru</h2><p class="text-slate-500 mt-1 text-sm">Kelola data tenaga pengajar.</p></div>
-                    <button onclick="openModalGuru()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center text-sm"><i class="fas fa-plus mr-2"></i> Tambah Guru</button>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Master Data Guru</h2>
+                        <p class="text-slate-500 mt-1 text-sm">Kelola data tenaga pengajar.</p>
+                    </div>
+                    <button onclick="openModalGuru()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center text-sm">
+                        <i class="fas fa-plus mr-2"></i> Tambah Guru
+                    </button>
                 </div>
+
                 <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
                             <thead><tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider"><th class="p-4 font-medium border-b w-2/3">Nama Lengkap Guru</th><th class="p-4 font-medium border-b text-center">Aksi</th></tr></thead>
                             <tbody class="text-sm divide-y divide-slate-100">
                                 ${state.data.guru.map(g => `
-                                    <tr class="hover:bg-slate-50 transition"><td class="p-4 font-medium text-slate-800 flex items-center"><div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-3">${g.nama.charAt(0)}</div>${g.nama}</td><td class="p-4 text-center"><button class="text-slate-400 hover:text-blue-600 mr-3" title="Edit"><i class="fas fa-edit"></i></button><button class="text-slate-400 hover:text-red-600" title="Hapus"><i class="fas fa-trash"></i></button></td></tr>
+                                    <tr class="hover:bg-slate-50 transition">
+                                        <td class="p-4 font-medium text-slate-800 flex items-center"><div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-3">${g.nama.charAt(0)}</div>${g.nama}</td>
+                                        <td class="p-4 text-center"><button class="text-slate-400 hover:text-blue-600 mr-3" title="Edit"><i class="fas fa-edit"></i></button><button class="text-slate-400 hover:text-red-600" title="Hapus"><i class="fas fa-trash"></i></button></td>
+                                    </tr>
                                 `).join('')}
                                 ${state.data.guru.length === 0 ? `<tr><td colspan="2" class="p-8 text-center text-slate-500">Belum ada data guru.</td></tr>` : ''}
                             </tbody>
@@ -600,30 +742,45 @@
                 </div>
             `;
         }
+
         function openModalGuru() { document.getElementById('modal-guru').classList.remove('hidden'); }
         async function saveGuru(e) {
             e.preventDefault();
             const payload = { nama: document.getElementById('g_nama').value };
             closeModal('modal-guru');
             const res = await apiCall('save_guru', payload);
-            if (res.success) { state.data.guru = []; Swal.fire({ icon: 'success', title: 'Guru ditambahkan', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false }); renderGuruAdmin(document.getElementById('view-container')); }
+            if (res.success) {
+                state.data.guru = []; // Invalidate
+                Swal.fire({ icon: 'success', title: 'Guru ditambahkan', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
+                renderGuruAdmin(document.getElementById('view-container'));
+            }
         }
 
         // -- PRIVATE: MASTER DATA MAPEL --
         async function renderMapelAdmin(container) {
             if (state.data.mapel.length === 0) { const res = await apiCall('get_mapel'); if (res.success) state.data.mapel = res.data; }
+
             container.innerHTML = `
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <div><h2 class="text-2xl font-bold text-slate-800">Master Data Mata Pelajaran</h2><p class="text-slate-500 mt-1 text-sm">Kelola daftar mata pelajaran sekolah.</p></div>
-                    <button onclick="openModalMapel()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center text-sm"><i class="fas fa-plus mr-2"></i> Tambah Mapel</button>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Master Data Mata Pelajaran</h2>
+                        <p class="text-slate-500 mt-1 text-sm">Kelola daftar mata pelajaran sekolah.</p>
+                    </div>
+                    <button onclick="openModalMapel()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center text-sm">
+                        <i class="fas fa-plus mr-2"></i> Tambah Mapel
+                    </button>
                 </div>
+
                 <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
                             <thead><tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider"><th class="p-4 font-medium border-b w-2/3">Nama Mata Pelajaran</th><th class="p-4 font-medium border-b text-center">Aksi</th></tr></thead>
                             <tbody class="text-sm divide-y divide-slate-100">
                                 ${state.data.mapel.map(m => `
-                                    <tr class="hover:bg-slate-50 transition"><td class="p-4 font-medium text-slate-800 flex items-center"><div class="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center mr-3"><i class="fas fa-book"></i></div>${m.nama}</td><td class="p-4 text-center"><button class="text-slate-400 hover:text-blue-600 mr-3" title="Edit"><i class="fas fa-edit"></i></button><button class="text-slate-400 hover:text-red-600" title="Hapus"><i class="fas fa-trash"></i></button></td></tr>
+                                    <tr class="hover:bg-slate-50 transition">
+                                        <td class="p-4 font-medium text-slate-800 flex items-center"><div class="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center mr-3"><i class="fas fa-book"></i></div>${m.nama}</td>
+                                        <td class="p-4 text-center"><button class="text-slate-400 hover:text-blue-600 mr-3" title="Edit"><i class="fas fa-edit"></i></button><button class="text-slate-400 hover:text-red-600" title="Hapus"><i class="fas fa-trash"></i></button></td>
+                                    </tr>
                                 `).join('')}
                                 ${state.data.mapel.length === 0 ? `<tr><td colspan="2" class="p-8 text-center text-slate-500">Belum ada data mata pelajaran.</td></tr>` : ''}
                             </tbody>
@@ -644,13 +801,18 @@
                 </div>
             `;
         }
+
         function openModalMapel() { document.getElementById('modal-mapel').classList.remove('hidden'); }
         async function saveMapel(e) {
             e.preventDefault();
             const payload = { nama: document.getElementById('mp_nama').value };
             closeModal('modal-mapel');
             const res = await apiCall('save_mapel', payload);
-            if (res.success) { state.data.mapel = []; Swal.fire({ icon: 'success', title: 'Mapel ditambahkan', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false }); renderMapelAdmin(document.getElementById('view-container')); }
+            if (res.success) {
+                state.data.mapel = []; // Invalidate
+                Swal.fire({ icon: 'success', title: 'Mapel ditambahkan', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
+                renderMapelAdmin(document.getElementById('view-container'));
+            }
         }
 
         // -- PRIVATE: MASTER DATA KELAS & SISWA --
@@ -661,18 +823,29 @@
 
             container.innerHTML = `
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <div><h2 class="text-2xl font-bold text-slate-800">Master Data Kelas</h2><p class="text-slate-500 mt-1 text-sm">Kelola daftar kelas beserta daftar siswanya.</p></div>
-                    <button onclick="openModalKelas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center text-sm"><i class="fas fa-plus mr-2"></i> Tambah Kelas</button>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Master Data Kelas</h2>
+                        <p class="text-slate-500 mt-1 text-sm">Kelola daftar kelas beserta daftar siswanya.</p>
+                    </div>
+                    <button onclick="openModalKelas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center text-sm">
+                        <i class="fas fa-plus mr-2"></i> Tambah Kelas
+                    </button>
                 </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     ${state.data.kelas.map(k => {
                 const jmlSiswa = state.data.siswa.filter(s => s.kelas === k.nama).length;
                 return `
                         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition">
-                            <div class="flex items-center justify-between mb-4"><div class="w-12 h-12 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold"><i class="fas fa-chalkboard-teacher"></i></div><span class="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">${jmlSiswa} Siswa</span></div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold"><i class="fas fa-chalkboard-teacher"></i></div>
+                                <span class="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">${jmlSiswa} Siswa</span>
+                            </div>
                             <h3 class="font-bold text-xl text-slate-800 mb-1">${k.nama}</h3>
                             <p class="text-sm text-slate-500 mb-4">Wali Kelas: ${k.wali}</p>
-                            <div class="mt-4 pt-4 border-t border-slate-100 flex gap-2"><button onclick="renderDetailKelas('${k.nama}')" class="flex-1 bg-slate-50 text-blue-600 hover:bg-blue-50 py-2 rounded-lg text-sm font-medium transition border border-slate-200">Lihat / Kelola Siswa</button></div>
+                            <div class="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+                                <button onclick="renderDetailKelas('${k.nama}')" class="flex-1 bg-slate-50 text-blue-600 hover:bg-blue-50 py-2 rounded-lg text-sm font-medium transition border border-slate-200">Lihat / Kelola Siswa</button>
+                            </div>
                         </div>
                         `
             }).join('')}
@@ -694,7 +867,10 @@
                                 </div>
                                 <div class="mb-4">
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Nama Wali Kelas</label>
-                                    <select id="k_wali" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="">Pilih Wali Kelas...</option>${state.data.guru.map(g => `<option value="${g.nama}">${g.nama}</option>`).join('')}</select>
+                                    <select id="k_wali" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none">
+                                        <option value="">Pilih Wali Kelas...</option>
+                                        ${state.data.guru.map(g => `<option value="${g.nama}">${g.nama}</option>`).join('')}
+                                    </select>
                                 </div>
                                 <div class="flex justify-end pt-4"><button type="button" onclick="closeModal('modal-kelas')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg mr-2 transition">Batal</button><button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium shadow hover:bg-blue-700">Simpan Kelas</button></div>
                             </form>
@@ -703,18 +879,24 @@
                 </div>
             `;
         }
+
         function openModalKelas() { document.getElementById('modal-kelas').classList.remove('hidden'); }
         async function saveKelas(e) {
             e.preventDefault();
             const payload = { nama: document.getElementById('k_nama').value, wali: document.getElementById('k_wali').value };
             closeModal('modal-kelas');
             const res = await apiCall('save_kelas', payload);
-            if (res.success) { state.data.kelas = []; Swal.fire('Berhasil', 'Kelas ditambahkan', 'success'); renderKelasAdmin(document.getElementById('view-container')); }
+            if (res.success) {
+                state.data.kelas = []; // Invalidate
+                Swal.fire('Berhasil', 'Kelas ditambahkan', 'success');
+                renderKelasAdmin(document.getElementById('view-container'));
+            }
         }
 
         async function renderDetailKelas(kelasName) {
             state.data.currentViewData = kelasName;
             const container = document.getElementById('view-container');
+
             if (state.data.siswa.length === 0) { const res = await apiCall('get_siswa'); if (res.success) state.data.siswa = res.data; }
             const siswaKelas = state.data.siswa.filter(s => s.kelas === kelasName);
 
@@ -726,6 +908,7 @@
                         <button onclick="openModalSiswa()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center"><i class="fas fa-user-plus mr-2"></i> Tambah Siswa</button>
                     </div>
                 </div>
+
                 <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
@@ -747,7 +930,10 @@
                             <form onsubmit="saveSiswa(event)">
                                 <div class="mb-4"><label class="block text-sm font-medium text-slate-700 mb-1">NIS (Nomor Induk Siswa)</label><input type="text" id="s_nis" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"></div>
                                 <div class="mb-4"><label class="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label><input type="text" id="s_nama" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"></div>
-                                <div class="mb-4"><label class="block text-sm font-medium text-slate-700 mb-1">Jenis Kelamin</label><select id="s_jk" class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="L">Laki-laki (L)</option><option value="P">Perempuan (P)</option></select></div>
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Jenis Kelamin</label>
+                                    <select id="s_jk" class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="L">Laki-laki (L)</option><option value="P">Perempuan (P)</option></select>
+                                </div>
                                 <div class="flex justify-end pt-4"><button type="button" onclick="closeModal('modal-siswa')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg mr-2 transition">Batal</button><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg font-medium shadow hover:bg-green-700">Simpan Siswa</button></div>
                             </form>
                         </div>
@@ -755,6 +941,7 @@
                 </div>
             `;
         }
+
         function openModalSiswa() { document.getElementById('modal-siswa').classList.remove('hidden'); }
         async function saveSiswa(e) {
             e.preventDefault();
@@ -762,22 +949,28 @@
             const payload = { nis: document.getElementById('s_nis').value, nama: document.getElementById('s_nama').value, jk: document.getElementById('s_jk').value, kelas: kelasTarget };
             closeModal('modal-siswa');
             const res = await apiCall('save_siswa', payload);
-            if (res.success) { state.data.siswa = []; Swal.fire({ icon: 'success', title: 'Siswa ditambahkan', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false }); renderDetailKelas(kelasTarget); }
+            if (res.success) {
+                state.data.siswa = []; // Invalidate
+                Swal.fire({ icon: 'success', title: 'Siswa ditambahkan', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
+                renderDetailKelas(kelasTarget);
+            }
         }
 
         // -- PRIVATE: MANAJEMEN MATERI --
         async function renderMateriAdmin(container) {
             if (state.data.materi.length === 0) { const res = await apiCall('get_materi'); if (res.success) state.data.materi = res.data; }
-            if (state.data.kelas.length === 0) { const resK = await apiCall('get_kelas'); if (resK.success) state.data.kelas = resK.data; }
             if (state.data.guru.length === 0) { const resG = await apiCall('get_guru'); if (resG.success) state.data.guru = resG.data; }
-            if (state.data.siswa.length === 0) { const resS = await apiCall('get_siswa'); if (resS.success) state.data.siswa = resS.data; }
             if (state.data.mapel.length === 0) { const resM = await apiCall('get_mapel'); if (resM.success) state.data.mapel = resM.data; }
+
+            let displayMateri = state.data.materi;
+            if (state.user.role === 'guru') displayMateri = state.data.materi.filter(m => m.pembuat === state.user.name);
 
             container.innerHTML = `
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div><h2 class="text-2xl font-bold text-slate-800">Manajemen Materi</h2><p class="text-slate-500 mt-1 text-sm">Kelola bahan ajar untuk siswa.</p></div>
                     <button onclick="openModalMateri()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center"><i class="fas fa-plus mr-2"></i> Tambah Materi</button>
                 </div>
+
                 <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                     <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                         <div class="relative w-full md:w-64"><i class="fas fa-search absolute left-3 top-3 text-slate-400"></i><input type="text" placeholder="Cari materi..." class="pl-10 w-full rounded-md border-slate-300 border p-2 text-sm focus:ring-blue-500 focus:border-blue-500"></div>
@@ -786,7 +979,7 @@
                         <table class="w-full text-left border-collapse">
                             <thead><tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider"><th class="p-4 font-medium border-b">Judul Materi</th><th class="p-4 font-medium border-b">Mata Pelajaran</th><th class="p-4 font-medium border-b">Kelas Target</th><th class="p-4 font-medium border-b">Tipe</th><th class="p-4 font-medium border-b">Aksi</th></tr></thead>
                             <tbody class="text-sm divide-y divide-slate-100" id="table-materi-body">
-                                ${state.data.materi.map(m => `
+                                ${displayMateri.map(m => `
                                     <tr class="hover:bg-slate-50 transition">
                                         <td class="p-4 font-medium text-slate-800">${m.judul}<br><span class="text-xs text-slate-400"><i class="fas fa-user-tie"></i> ${m.pembuat}</span></td>
                                         <td class="p-4 text-slate-600">${m.mapel}</td>
@@ -795,7 +988,7 @@
                                         <td class="p-4"><button class="text-slate-400 hover:text-blue-600 mr-3" title="Edit"><i class="fas fa-edit"></i></button><button class="text-slate-400 hover:text-red-600" title="Hapus"><i class="fas fa-trash"></i></button></td>
                                     </tr>
                                 `).join('')}
-                                ${state.data.materi.length === 0 ? `<tr><td colspan="5" class="p-8 text-center text-slate-500">Belum ada materi.</td></tr>` : ''}
+                                ${displayMateri.length === 0 ? `<tr><td colspan="5" class="p-8 text-center text-slate-500">Belum ada materi.</td></tr>` : ''}
                             </tbody>
                         </table>
                     </div>
@@ -808,11 +1001,17 @@
                             <form id="form-materi" onsubmit="saveMateri(event)">
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                     <div class="md:col-span-2"><label class="block text-sm font-medium text-slate-700 mb-1">Judul Materi</label><input type="text" id="m_judul" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"></div>
-                                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Guru Pengajar</label><select id="m_guru" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="">Pilih Guru...</option>${state.data.guru.map(g => `<option value="${g.nama}">${g.nama}</option>`).join('')}</select></div>
-                                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Mata Pelajaran</label><select id="m_mapel" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="">Pilih Mapel...</option>${state.data.mapel.map(mp => `<option value="${mp.nama}">${mp.nama}</option>`).join('')}</select></div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Guru Pengajar</label>
+                                        <select id="m_guru" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="">Pilih Guru...</option>${state.data.guru.map(g => `<option value="${g.nama}">${g.nama}</option>`).join('')}</select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Mata Pelajaran</label>
+                                        <select id="m_mapel" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="">Pilih Mapel...</option>${state.data.mapel.map(mp => `<option value="${mp.nama}">${mp.nama}</option>`).join('')}</select>
+                                    </div>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Kelas Target</label>
-                                        <select id="m_kelas" required onchange="previewSiswaTarget(this.value)" class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none">
+                                        <select id="m_kelas" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none">
                                             <option value="">Pilih Kelas Target...</option>
                                             <option value="Semua Kelas">Semua Kelas (Publik)</option>
                                             <optgroup label="Kelas 10"><option value="X IPA 1">X IPA 1</option><option value="X IPA 2">X IPA 2</option><option value="X IPS 1">X IPS 1</option><option value="X IPS 2">X IPS 2</option></optgroup>
@@ -820,9 +1019,11 @@
                                             <optgroup label="Kelas 12"><option value="XII IPA 1">XII IPA 1</option><option value="XII IPA 2">XII IPA 2</option><option value="XII IPS 1">XII IPS 1</option><option value="XII IPS 2">XII IPS 2</option></optgroup>
                                         </select>
                                     </div>
-                                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Tipe Lampiran</label><select id="m_tipe" class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="pdf">Link Google Drive / PDF</option><option value="youtube">Link YouTube</option><option value="canva">Link Canva</option></select></div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Tipe Lampiran</label>
+                                        <select id="m_tipe" class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"><option value="pdf">Link Google Drive / PDF</option><option value="youtube">Link YouTube</option><option value="canva">Link Canva</option></select>
+                                    </div>
                                 </div>
-                                <div id="preview-target-siswa" class="hidden mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100"><p class="text-xs font-semibold text-blue-800 mb-1">Siswa Terdaftar di Kelas ini (<span id="count-siswa">0</span>):</p><p class="text-xs text-blue-600 line-clamp-2" id="list-siswa">-</p></div>
                                 <div class="mb-4"><label class="block text-sm font-medium text-slate-700 mb-1">Link URL (G-Drive/YouTube)</label><input type="url" id="m_link" class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none" placeholder="https://..."></div>
                                 <div class="mb-4"><label class="block text-sm font-medium text-slate-700 mb-1">Deskripsi</label><textarea id="m_deskripsi" rows="3" class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none"></textarea></div>
                                 <div class="flex justify-end pt-4 border-t border-slate-100"><button type="button" onclick="closeModal('modal-materi')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg mr-2 transition">Batal</button><button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow transition">Simpan Materi</button></div>
@@ -835,31 +1036,29 @@
 
         function openModalMateri() {
             document.getElementById('modal-materi').classList.remove('hidden');
-            document.getElementById('preview-target-siswa').classList.add('hidden');
             if (state.user.role === 'guru') document.getElementById('m_guru').value = state.user.name;
         }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        function previewSiswaTarget(kelasName) {
-            const container = document.getElementById('preview-target-siswa');
-            const countEl = document.getElementById('count-siswa');
-            const listEl = document.getElementById('list-siswa');
-            if (!kelasName || kelasName === 'Semua Kelas') { container.classList.add('hidden'); return; }
-            const siswaKelas = state.data.siswa.filter(s => s.kelas === kelasName);
-            container.classList.remove('hidden');
-            if (siswaKelas.length > 0) { countEl.innerText = siswaKelas.length; listEl.innerText = siswaKelas.map(s => s.nama).join(', '); }
-            else { countEl.innerText = '0'; listEl.innerText = 'Belum ada siswa yang ditambahkan ke kelas ini.'; }
-        }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
         async function saveMateri(e) {
             e.preventDefault();
             const payload = {
-                judul: document.getElementById('m_judul').value, pembuat: document.getElementById('m_guru').value, mapel: document.getElementById('m_mapel').value,
-                kelas: document.getElementById('m_kelas').value, tipe: document.getElementById('m_tipe').value, link: document.getElementById('m_link').value, deskripsi: base64Encode(document.getElementById('m_deskripsi').value)
+                judul: document.getElementById('m_judul').value,
+                pembuat: document.getElementById('m_guru').value,
+                mapel: document.getElementById('m_mapel').value,
+                kelas: document.getElementById('m_kelas').value,
+                tipe: document.getElementById('m_tipe').value,
+                link: document.getElementById('m_link').value,
+                deskripsi: base64Encode(document.getElementById('m_deskripsi').value)
             };
             closeModal('modal-materi');
             const res = await apiCall('save_materi', payload);
-            if (res.success) { state.data.materi = []; Swal.fire('Berhasil', 'Materi ditambahkan', 'success'); renderMateriAdmin(document.getElementById('view-container')); }
+            if (res.success) {
+                state.data.materi = []; // Invalidate
+                Swal.fire('Berhasil', 'Materi ditambahkan', 'success');
+                renderMateriAdmin(document.getElementById('view-container'));
+            }
         }
 
         // -- PRIVATE: MANAJEMEN TUGAS --
@@ -869,12 +1068,17 @@
             if (state.data.mapel.length === 0) { const resM = await apiCall('get_mapel'); if (resM.success) state.data.mapel = resM.data; }
 
             let displayTugas = state.data.tugas;
-            if (state.user.role === 'guru') { displayTugas = state.data.tugas.filter(t => t.guru === state.user.name); }
+            if (state.user.role === 'guru') displayTugas = state.data.tugas.filter(t => t.guru === state.user.name);
 
             container.innerHTML = `
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <div><h2 class="text-2xl font-bold text-slate-800">Manajemen Tugas Esai</h2><p class="text-slate-500 mt-1 text-sm">Buat tugas, tetapkan deadline, dan bagikan link pengumpulan.</p></div>
-                    <button onclick="openModalTugas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center"><i class="fas fa-plus mr-2"></i> Buat Tugas</button>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Manajemen Tugas Esai</h2>
+                        <p class="text-slate-500 mt-1 text-sm">Buat tugas, tetapkan deadline, dan bagikan link pengumpulan.</p>
+                    </div>
+                    <button onclick="openModalTugas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center">
+                        <i class="fas fa-plus mr-2"></i> Buat Tugas
+                    </button>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -915,7 +1119,7 @@
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Kelas Target</label>
                                         <select id="t_kelas" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-blue-500 outline-none">
-                                            <option value="">Pilih Kelas...</option>
+                                            <option value="">Pilih Kelas Target...</option>
                                             <optgroup label="Kelas 10"><option value="X IPA 1">X IPA 1</option><option value="X IPA 2">X IPA 2</option><option value="X IPS 1">X IPS 1</option><option value="X IPS 2">X IPS 2</option></optgroup>
                                             <optgroup label="Kelas 11"><option value="XI IPA 1">XI IPA 1</option><option value="XI IPA 2">XI IPA 2</option><option value="XI IPS 1">XI IPS 1</option><option value="XI IPS 2">XI IPS 2</option></optgroup>
                                             <optgroup label="Kelas 12"><option value="XII IPA 1">XII IPA 1</option><option value="XII IPA 2">XII IPA 2</option><option value="XII IPS 1">XII IPS 1</option><option value="XII IPS 2">XII IPS 2</option></optgroup>
@@ -931,13 +1135,25 @@
                 </div>
             `;
         }
-        function openModalTugas() { document.getElementById('modal-tugas').classList.remove('hidden'); if (state.user.role === 'guru') document.getElementById('t_guru').value = state.user.name; }
+
+        function openModalTugas() {
+            document.getElementById('modal-tugas').classList.remove('hidden');
+            if (state.user.role === 'guru') document.getElementById('t_guru').value = state.user.name;
+        }
+
         async function saveTugas(e) {
             e.preventDefault();
-            const payload = { judul: document.getElementById('t_judul').value, guru: document.getElementById('t_guru').value, mapel: document.getElementById('t_mapel').value, kelas: document.getElementById('t_kelas').value, deadline: document.getElementById('t_deadline').value, deskripsi: base64Encode(document.getElementById('t_deskripsi').value) };
+            const payload = {
+                judul: document.getElementById('t_judul').value, guru: document.getElementById('t_guru').value, mapel: document.getElementById('t_mapel').value,
+                kelas: document.getElementById('t_kelas').value, deadline: document.getElementById('t_deadline').value, deskripsi: base64Encode(document.getElementById('t_deskripsi').value)
+            };
             closeModal('modal-tugas');
             const res = await apiCall('save_tugas', payload);
-            if (res.success) { state.data.tugas = []; Swal.fire('Berhasil', 'Tugas ditambahkan. Jangan lupa salin link untuk siswa!', 'success'); renderTugasAdmin(document.getElementById('view-container')); }
+            if (res.success) {
+                state.data.tugas = []; // Invalidate
+                Swal.fire('Berhasil', 'Tugas ditambahkan. Jangan lupa salin link untuk siswa!', 'success');
+                renderTugasAdmin(document.getElementById('view-container'));
+            }
         }
 
         // -- PRIVATE: MANAJEMEN KUIS (PILIHAN GANDA) --
@@ -991,7 +1207,7 @@
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Kelas Target</label>
                                         <select id="q_kelas" required class="w-full rounded-md border-slate-300 border p-2 focus:ring-indigo-500 outline-none">
-                                            <option value="">Pilih Kelas...</option>
+                                            <option value="">Pilih Kelas Target...</option>
                                             <optgroup label="Kelas 10"><option value="X IPA 1">X IPA 1</option><option value="X IPA 2">X IPA 2</option><option value="X IPS 1">X IPS 1</option><option value="X IPS 2">X IPS 2</option></optgroup>
                                             <optgroup label="Kelas 11"><option value="XI IPA 1">XI IPA 1</option><option value="XI IPA 2">XI IPA 2</option><option value="XI IPS 1">XI IPS 1</option><option value="XI IPS 2">XI IPS 2</option></optgroup>
                                             <optgroup label="Kelas 12"><option value="XII IPA 1">XII IPA 1</option><option value="XII IPA 2">XII IPA 2</option><option value="XII IPS 1">XII IPS 1</option><option value="XII IPS 2">XII IPS 2</option></optgroup>
@@ -1006,13 +1222,22 @@
                 </div>
             `;
         }
-        function openModalKuis() { document.getElementById('modal-kuis').classList.remove('hidden'); if (state.user.role === 'guru') document.getElementById('q_guru').value = state.user.name; }
+
+        function openModalKuis() {
+            document.getElementById('modal-kuis').classList.remove('hidden');
+            if (state.user.role === 'guru') document.getElementById('q_guru').value = state.user.name;
+        }
+
         async function saveKuis(e) {
             e.preventDefault();
             const payload = { judul: document.getElementById('q_judul').value, guru: document.getElementById('q_guru').value, mapel: document.getElementById('q_mapel').value, kelas: document.getElementById('q_kelas').value, durasi: document.getElementById('q_durasi').value };
             closeModal('modal-kuis');
             const res = await apiCall('save_kuis', payload);
-            if (res.success) { state.data.kuis = []; Swal.fire('Berhasil', 'Kuis dibuat. Silakan tambahkan soal.', 'success'); renderDetailKuis(res.data.id); }
+            if (res.success) {
+                state.data.kuis = [];
+                Swal.fire('Berhasil', 'Kuis dibuat. Silakan tambahkan soal.', 'success');
+                renderDetailKuis(res.data.id);
+            }
         }
 
         async function renderDetailKuis(kuisId) {
@@ -1032,6 +1257,7 @@
                         <button onclick="openModalSoal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium shadow transition flex items-center"><i class="fas fa-plus mr-2"></i> Tambah Soal</button>
                     </div>
                 </div>
+
                 <div class="space-y-4">
                     ${soalKuis.map((s, idx) => `
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 relative">
@@ -1081,12 +1307,17 @@
             };
             closeModal('modal-soal');
             const res = await apiCall('save_soal', payload);
-            if (res.success) { state.data.soal = []; Swal.fire({ icon: 'success', title: 'Soal tersimpan', toast: true, position: 'top-end', timer: 1000, showConfirmButton: false }); renderDetailKuis(state.data.currentViewData); }
+            if (res.success) {
+                state.data.soal = [];
+                Swal.fire({ icon: 'success', title: 'Soal tersimpan', toast: true, position: 'top-end', timer: 1000, showConfirmButton: false });
+                renderDetailKuis(state.data.currentViewData);
+            }
         }
 
         // -- PUBLIC: MATERI LIST --
         async function renderPublicMateri(container) {
             if (state.data.materi.length === 0) { const res = await apiCall('get_materi'); if (res.success) state.data.materi = res.data; }
+
             container.innerHTML = `
                 <div class="max-w-6xl mx-auto">
                     <div class="mb-8 text-center"><h2 class="text-3xl font-bold text-slate-800 mb-2">E-Learning Pustaka</h2><p class="text-slate-500">Akses materi pembelajaran yang dibagikan oleh guru Anda.</p></div>
@@ -1095,6 +1326,7 @@
                         <select class="w-full md:w-48 rounded-lg border-slate-300 border p-3 bg-white focus:ring-blue-500 shadow-sm outline-none"><option>Semua Kelas</option><option>X IPA</option><option>XI IPS</option></select>
                         <button class="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow hover:bg-blue-700 transition">Filter</button>
                     </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         ${state.data.materi.map(m => `
                             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-full hover:shadow-md transition">
@@ -1112,6 +1344,131 @@
                                 </div>
                             </div>
                         `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // -- PUBLIC: TENTANG --
+        function renderAbout(container) {
+            container.innerHTML = `
+                <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-slate-100 p-8 text-center mt-10">
+                    <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6"><i class="fas fa-school"></i></div>
+                    <h2 class="text-3xl font-bold text-slate-800 mb-4">Tentang Smart Learning School</h2>
+                    <p class="text-slate-600 text-lg mb-6 leading-relaxed">Smart Learning School adalah platform Learning Management System (LMS) modern yang memfasilitasi proses belajar mengajar secara digital. Melalui platform ini, siswa dapat mengakses materi pembelajaran, mengumpulkan tugas, dan mengikuti kuis online dengan mudah dan cepat.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left mt-8 border-t border-slate-100 pt-8">
+                        <div>
+                            <h3 class="font-bold text-slate-800 mb-2"><i class="fas fa-bullseye text-blue-500 mr-2"></i> Visi Kami</h3>
+                            <p class="text-slate-600 text-sm leading-relaxed">Menjadi pelopor digitalisasi pendidikan yang menciptakan lingkungan belajar interaktif, mandiri, dan berkelanjutan bagi seluruh ekosistem sekolah.</p>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 mb-2"><i class="fas fa-rocket text-green-500 mr-2"></i> Misi Kami</h3>
+                            <p class="text-slate-600 text-sm leading-relaxed">Menyediakan platform yang mudah diakses (Zero-Cost Infrastructure), mendukung guru dalam evaluasi otomatis, dan memberikan fleksibilitas bagi siswa dalam belajar di mana saja.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // -- PUBLIC: DAFTAR TUGAS --
+        async function renderPublicTugasList(container) {
+            if (state.data.tugas.length === 0) { const res = await apiCall('get_tugas'); if (res.success) state.data.tugas = res.data; }
+
+            container.innerHTML = `
+                <div class="max-w-6xl mx-auto">
+                    <div class="mb-8 text-center"><h2 class="text-3xl font-bold text-slate-800 mb-2">Daftar Tugas Aktif</h2><p class="text-slate-500">Lihat dan kerjakan tugas yang diberikan oleh guru Anda.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${state.data.tugas.map(t => `
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-full hover:shadow-md transition relative overflow-hidden">
+                                <div class="absolute top-0 right-0 w-2 h-full bg-green-500"></div>
+                                <div class="flex justify-between items-start mb-4"><span class="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded">${t.mapel}</span><span class="text-xs text-red-500 font-semibold border border-red-200 bg-red-50 px-2 py-1 rounded"><i class="far fa-clock"></i> ${t.deadline}</span></div>
+                                <h3 class="font-bold text-slate-800 text-lg mb-1">${t.judul}</h3>
+                                <p class="text-xs text-slate-500 uppercase font-semibold mb-4">Kelas: ${t.kelas}</p>
+                                <div class="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                                    <span><i class="fas fa-user-edit mr-1"></i> ${t.guru}</span>
+                                    <button onclick="navigate('public-tugas?id=${t.id}')" class="text-green-600 font-semibold hover:underline flex items-center bg-green-50 px-3 py-1.5 rounded-full transition hover:bg-green-100">Kerjakan <i class="fas fa-chevron-right ml-1.5 text-[10px]"></i></button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${state.data.tugas.length === 0 ? '<div class="col-span-full text-center text-slate-500 py-10">Belum ada tugas yang tersedia.</div>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // -- PUBLIC: PENGUMPULAN TUGAS (FORM) --
+        async function renderPublicTugas(container) {
+            const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+            const tugasId = urlParams.get('id');
+
+            if (!tugasId) return container.innerHTML = `<div class="text-center mt-20 text-red-500 font-bold">Error: Link Tugas Tidak Valid</div>`;
+            if (state.data.tugas.length === 0) await apiCall('get_tugas').then(r => state.data.tugas = r.data);
+
+            const tugas = state.data.tugas.find(t => t.id === tugasId);
+            if (!tugas) return container.innerHTML = `<div class="text-center mt-20 text-red-500 font-bold">Error: Tugas tidak ditemukan.</div>`;
+
+            container.innerHTML = `
+                <div class="max-w-3xl mx-auto bg-white rounded-xl shadow border-t-8 border-t-green-500 overflow-hidden">
+                    <div class="p-8 border-b border-slate-100 bg-green-50">
+                        <div class="flex items-center justify-between mb-2">
+                            <h1 class="text-3xl font-bold text-slate-800">${tugas.judul}</h1>
+                        </div>
+                        <p class="text-slate-600 mb-4">${tugas.mapel} • Kelas Target: ${tugas.kelas} • Oleh: ${tugas.guru}</p>
+                        <div class="flex items-center text-sm font-semibold text-red-500 bg-white inline-block px-3 py-1 rounded shadow-sm border border-red-100">
+                            <i class="far fa-calendar-times mr-2"></i> Deadline: ${tugas.deadline}
+                        </div>
+                    </div>
+                    <div class="p-8">
+                        <div class="mb-8 p-6 bg-slate-50 rounded-lg border border-slate-200">
+                            <h3 class="font-bold text-slate-800 mb-2 border-b pb-2">Instruksi / Soal:</h3>
+                            <p class="text-slate-700 whitespace-pre-wrap">${base64Decode(tugas.deskripsi)}</p>
+                        </div>
+                        <h3 class="font-bold text-lg text-slate-800 mb-4 border-b pb-2">Form Pengumpulan Tugas</h3>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap *</label>
+                            <input type="text" id="kumpul_nama" placeholder="Masukkan nama Anda" class="w-full border border-slate-300 p-3 rounded focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">NIS *</label>
+                            <input type="text" id="kumpul_nis" placeholder="Nomor Induk Siswa" class="w-full border border-slate-300 p-3 rounded focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Link Jawaban (Google Drive / Docs) *</label>
+                            <input type="url" id="kumpul_link" placeholder="https://..." class="w-full border border-slate-300 p-3 rounded focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Catatan Tambahan (Opsional)</label>
+                            <textarea id="kumpul_catatan" rows="3" class="w-full border border-slate-300 p-3 rounded focus:ring-2 focus:ring-green-500 outline-none"></textarea>
+                        </div>
+                        <div class="mt-8 flex justify-end">
+                            <button onclick="Swal.fire('Berhasil', 'Form pengumpulan simulasi dikirim.', 'success')" class="bg-green-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-green-700 shadow-lg transition">Kumpulkan Tugas</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // -- PUBLIC: DAFTAR KUIS --
+        async function renderPublicKuisList(container) {
+            if (state.data.kuis.length === 0) { const res = await apiCall('get_kuis'); if (res.success) state.data.kuis = res.data; }
+
+            container.innerHTML = `
+                <div class="max-w-6xl mx-auto">
+                    <div class="mb-8 text-center"><h2 class="text-3xl font-bold text-slate-800 mb-2">Daftar Kuis Tersedia</h2><p class="text-slate-500">Evaluasi pembelajaran Anda melalui kuis pilihan ganda.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${state.data.kuis.map(k => `
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-full hover:shadow-md transition relative overflow-hidden">
+                                <div class="absolute top-0 right-0 w-2 h-full bg-indigo-500"></div>
+                                <div class="flex justify-between items-start mb-4"><span class="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded">${k.mapel}</span><span class="text-xs text-indigo-600 font-semibold border border-indigo-200 bg-indigo-50 px-2 py-1 rounded"><i class="fas fa-stopwatch"></i> ${k.durasi} Menit</span></div>
+                                <h3 class="font-bold text-slate-800 text-lg mb-1">${k.judul}</h3>
+                                <p class="text-xs text-slate-500 uppercase font-semibold mb-4">Kelas: ${k.kelas}</p>
+                                <div class="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                                    <span><i class="fas fa-user-edit mr-1"></i> ${k.guru}</span>
+                                    <button onclick="navigate('public-kuis?id=${k.id}')" class="text-indigo-600 font-semibold hover:underline flex items-center bg-indigo-50 px-3 py-1.5 rounded-full transition hover:bg-indigo-100">Mulai Kuis <i class="fas fa-play ml-1.5 text-[10px]"></i></button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${state.data.kuis.length === 0 ? '<div class="col-span-full text-center text-slate-500 py-10">Belum ada kuis yang tersedia.</div>' : ''}
                     </div>
                 </div>
             `;
@@ -1175,10 +1532,12 @@
             if (!namaSiswa) return Swal.fire('Peringatan', 'Harap isi nama Anda!', 'warning');
 
             const soalItems = document.querySelectorAll('.soal-item');
-            let benar = 0; let total = soalItems.length;
+            let benar = 0;
+            let total = soalItems.length;
 
             soalItems.forEach(item => {
-                const idSoal = item.dataset.id; const kunci = item.dataset.kunci;
+                const idSoal = item.dataset.id;
+                const kunci = item.dataset.kunci;
                 const jawabanTerpilih = document.querySelector(`input[name="jawaban_${idSoal}"]:checked`);
                 if (jawabanTerpilih && jawabanTerpilih.value === kunci) { benar++; }
             });
@@ -1200,17 +1559,21 @@
         /* ==========================================
            6. INITIALIZATION & EVENT LISTENERS
            ========================================== */
+
         document.addEventListener('DOMContentLoaded', () => {
             checkAuth();
             setupLayout();
+
             const initialRoute = window.location.hash.replace('#', '') || (state.user ? 'dashboard' : 'home');
-            navigate(initialRoute);
+            navigate(initialRoute.split('?')[0] || 'home');
+
             document.getElementById('mobile-menu-btn').addEventListener('click', toggleMobileMenu);
             window.addEventListener('hashchange', () => {
                 const route = window.location.hash.replace('#', '');
                 if (route) navigate(route.split('?')[0]);
             });
         });
+
     </script>
 </body>
 
