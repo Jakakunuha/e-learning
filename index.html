@@ -133,12 +133,12 @@
                 <div class="flex items-center space-x-4">
                     <!-- Public Nav (Bila belum login) -->
                     <div id="public-nav" class="hidden md:flex space-x-4 text-sm font-medium text-slate-600">
-                        <a href="#" onclick="navigate('home')" class="hover:text-blue-600">Beranda</a>
-                        <a href="#" onclick="navigate('about')" class="hover:text-blue-600">Tentang</a>
-                        <a href="#" onclick="navigate('public-materi')" class="hover:text-blue-600">Materi</a>
-                        <a href="#" onclick="navigate('public-tugas-list')" class="hover:text-blue-600">Tugas</a>
-                        <a href="#" onclick="navigate('public-kuis-list')" class="hover:text-blue-600">Kuis</a>
-                        <a href="#" onclick="navigate('login')"
+                        <a href="#home" class="hover:text-blue-600">Beranda</a>
+                        <a href="#about" class="hover:text-blue-600">Tentang</a>
+                        <a href="#public-materi" class="hover:text-blue-600">Materi</a>
+                        <a href="#public-tugas-list" class="hover:text-blue-600">Tugas</a>
+                        <a href="#public-kuis-list" class="hover:text-blue-600">Kuis</a>
+                        <a href="#login"
                             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Login</a>
                     </div>
                     <!-- Notif (Bila login) -->
@@ -430,6 +430,13 @@
         ];
 
         function navigate(routeId) {
+            // If the hash is different, update it and let the hashchange event handle the rendering
+            const targetHash = '#' + routeId;
+            if (window.location.hash !== targetHash) {
+                window.location.hash = routeId;
+                return;
+            }
+
             let baseRoute = routeId.split('?')[0];
             const route = ROUTES[baseRoute] || ROUTES[routeId];
             if (!route) return;
@@ -472,6 +479,7 @@
                 sidebar.classList.remove('hidden');
                 sidebar.classList.add('md:flex', '-translate-x-full', 'md:translate-x-0');
                 mainWrap.classList.add('md:ml-64');
+                publicNav.classList.remove('md:flex');
                 publicNav.classList.add('hidden');
                 notifBtn.classList.remove('hidden');
                 bottomNav.classList.remove('hidden');
@@ -490,6 +498,7 @@
                 sidebar.classList.remove('md:flex', '-translate-x-full', 'md:translate-x-0');
                 mainWrap.classList.remove('md:ml-64');
                 publicNav.classList.remove('hidden');
+                publicNav.classList.add('md:flex');
                 notifBtn.classList.add('hidden');
                 bottomNav.classList.add('hidden');
                 document.getElementById('top-navbar').classList.remove('md:w-[calc(100%-16rem)]');
@@ -1565,12 +1574,12 @@
             setupLayout();
 
             const initialRoute = window.location.hash.replace('#', '') || (state.user ? 'dashboard' : 'home');
-            navigate(initialRoute.split('?')[0] || 'home');
+            navigate(initialRoute || 'home');
 
             document.getElementById('mobile-menu-btn').addEventListener('click', toggleMobileMenu);
             window.addEventListener('hashchange', () => {
                 const route = window.location.hash.replace('#', '');
-                if (route) navigate(route.split('?')[0]);
+                if (route) navigate(route);
             });
         });
 
